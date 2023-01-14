@@ -18,7 +18,11 @@ type WebhookPayload struct {
 	Ref string `json:"ref"`
 }
 
-func HandleWebhook(w http.ResponseWriter, req *http.Request) {
+var hooks = map[string]string{
+	"/webhook/github/pull": "cd /var/www/html; git fetch origin gh-pages; git reset --hard FETCH_HEAD",
+}
+
+func HandleWebhookWithCommand(w http.ResponseWriter, req *http.Request, s string) {
 	if req.Method != http.MethodPost {
 		w.WriteHeader(http.StatusForbidden)
 		return
@@ -65,7 +69,7 @@ func HandleWebhook(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if payload.Ref == "refs/heads/gh-pages" {
-		cmd := exec.Command("sh", "-c", "cd /var/www/html; git fetch origin gh-pages; git reset --hard FETCH_HEAD")
+		cmd := exec.Command("sh", "-c", s)
 		if err := cmd.Start(); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "Webhook failed\n")
@@ -78,6 +82,8 @@ func HandleWebhook(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/webhook/github/pull", HandleWebhook)
-	log.Fatal(http.ListenAndServe("127.0.0.1:8000", nil))
+	for k, v := range hooks {
+		http.HandleFunc(k, func(w http.ResponseWriter, r *http.Request) { HandleWebhookWithCommand(w, r, v) })
+	}
+	log.Fatal(http.ListenAndServe("127.0.0.1:8001", nil))
 }
