@@ -14,6 +14,11 @@ import (
 )
 
 type Config struct {
+	Host struct {
+		Address  string `json:"address"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	} `json:"host"`
 	Sensors []string `json:"sensors"`
 }
 
@@ -39,7 +44,17 @@ func main() {
 
 	b := []byte("sdr get " + strings.Join(config.Sensors, " ") + "\n")
 
-	cmd := exec.Command("ipmitool", "shell")
+	var cmd *exec.Cmd
+	if config.Host.Address != "" {
+		cmd = exec.Command("ipmitool",
+			"-I", "lanplus",
+			"-H", config.Host.Address,
+			"-U", config.Host.Username,
+			"-P", config.Host.Password,
+			"shell")
+	} else {
+		cmd = exec.Command("ipmitool", "shell")
+	}
 	stdinW, _ := cmd.StdinPipe()
 	stdoutR, _ := cmd.StdoutPipe()
 

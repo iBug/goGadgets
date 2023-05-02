@@ -1,4 +1,9 @@
 {
+  "host": {
+    "address": "127.0.0.1",
+    "username": "admin",
+    "password": "admin"
+  },
   "sensors": [
     "PSU1_PIN",
     "PSU1_POUT",
