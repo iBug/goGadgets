@@ -1,0 +1,10 @@
+{
+  "host": "127.0.0.1:22",
+  "username": "apc",
+  "password": "password",
+  "influxdb": {
+    "host": "http://127.0.0.1:8086",
+    "token": "token",
+    "database": "apc"
+  }
+}
