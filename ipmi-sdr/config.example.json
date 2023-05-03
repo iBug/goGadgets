@@ -1,9 +1,18 @@
 {
-  "host": {
-    "address": "127.0.0.1",
-    "username": "admin",
-    "password": "admin"
-  },
+  "hosts": [
+    {
+      "name": "foo",
+      "address": "127.0.0.1",
+      "username": "admin",
+      "password": "admin"
+    },
+    {
+      "name": "bar",
+      "address": "127.0.0.2",
+      "username": "admin",
+      "password": "admin"
+    }
+  ],
   "sensors": [
     "PSU1_PIN",
     "PSU1_POUT",
@@ -11,5 +20,10 @@
     "FAN_Power",
     "Memory_Power",
     "Total_Power"
-  ]
+  ],
+  "influxdb": {
+    "host": "http://127.0.0.1:8086",
+    "token": "token",
+    "database": "apc"
+  }
 }

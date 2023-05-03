@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -14,23 +13,39 @@ import (
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api"
 )
 
-type Config struct {
-	Hostname string `json:"hostname"`
+type HostConfig struct {
+	Name     string `json:"name"`
+	Address  string `json:"address"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
 
-	Host struct {
-		Address  string `json:"address"`
-		Username string `json:"username"`
-		Password string `json:"password"`
-	} `json:"host"`
-	Sensors []string `json:"sensors"`
+type Config struct {
+	Hosts   []HostConfig `json:"hosts"`
+	Sensors []string     `json:"sensors"`
 
 	InfluxDB struct {
 		Host     string `json:"host"`
 		Token    string `json:"token"`
 		Database string `json:"database"`
 	} `json:"influxdb"`
+}
+
+func openIPMI(host HostConfig) (cmd *exec.Cmd) {
+	if host.Address != "" {
+		cmd = exec.Command("ipmitool",
+			"-I", "lanplus",
+			"-H", host.Address,
+			"-U", host.Username,
+			"-P", host.Password,
+			"shell")
+	} else {
+		cmd = exec.Command("ipmitool", "shell")
+	}
+	return
 }
 
 func loadConfig(filename string) *Config {
@@ -47,34 +62,14 @@ func loadConfig(filename string) *Config {
 	return config
 }
 
-func main() {
-	var configFile string
-	flag.StringVar(&configFile, "c", "config.json", "config file")
-	flag.Parse()
-	config := loadConfig(configFile)
-
-	influxdb := influxdb2.NewClient(config.InfluxDB.Host, config.InfluxDB.Token)
-	writeAPI := influxdb.WriteAPIBlocking("", config.InfluxDB.Database)
-
-	b := []byte("sdr get " + strings.Join(config.Sensors, " ") + "\n")
-
-	var cmd *exec.Cmd
-	if config.Host.Address != "" {
-		cmd = exec.Command("ipmitool",
-			"-I", "lanplus",
-			"-H", config.Host.Address,
-			"-U", config.Host.Username,
-			"-P", config.Host.Password,
-			"shell")
-	} else {
-		cmd = exec.Command("ipmitool", "shell")
-	}
+func hostWorker(writeAPI api.WriteAPIBlocking, cmd *exec.Cmd, host string, sensors []string) {
 	stdinW, _ := cmd.StdinPipe()
 	stdoutR, _ := cmd.StdoutPipe()
 
 	cmd.Start()
 	defer cmd.Wait()
 
+	b := []byte("sdr get " + strings.Join(sensors, " ") + "\n")
 	stdinW.Write([]byte("set csv 1\n"))
 	go func() {
 		for t := range time.NewTicker(time.Second).C {
@@ -87,8 +82,6 @@ func main() {
 	for scanner.Scan() {
 		t := scanner.Text()
 		if strings.HasPrefix(t, "ipmitool>") {
-			fmt.Println()
-			fmt.Println(time.Now().Format("2006-01-02 15:04:05"))
 			continue
 		}
 		f := strings.Split(t, ",")
@@ -101,7 +94,7 @@ func main() {
 			continue
 		}
 		p := influxdb2.NewPointWithMeasurement("ipmi").
-			AddTag("host", config.Hostname).
+			AddTag("host", host).
 			AddTag("sensor", f[0]).
 			AddField("_value", value).
 			SetTime(time.Now())
@@ -110,4 +103,20 @@ func main() {
 			log.Printf("WritePoint: %v", err)
 		}
 	}
+}
+
+func main() {
+	var configFile string
+	flag.StringVar(&configFile, "c", "config.json", "config file")
+	flag.Parse()
+	config := loadConfig(configFile)
+
+	influxdb := influxdb2.NewClient(config.InfluxDB.Host, config.InfluxDB.Token)
+	writeAPI := influxdb.WriteAPIBlocking("", config.InfluxDB.Database)
+
+	for _, host := range config.Hosts {
+		cmd := openIPMI(host)
+		go hostWorker(writeAPI, cmd, host.Name, config.Sensors)
+	}
+	<-make(chan struct{})
 }
