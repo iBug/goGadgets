@@ -1,25 +1,36 @@
-// while true; do echo 'set csv 1'; while true; do echo 'sdr get PSU1_PIN PSU1_POUT CPU_Power FAN_Power Memory_Power Total_Power'; sleep 1; done; done | sudo ipmitool shell | grep Watts
-
 package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
+
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 )
 
 type Config struct {
+	Hostname string `json:"hostname"`
+
 	Host struct {
 		Address  string `json:"address"`
 		Username string `json:"username"`
 		Password string `json:"password"`
 	} `json:"host"`
 	Sensors []string `json:"sensors"`
+
+	InfluxDB struct {
+		Host     string `json:"host"`
+		Token    string `json:"token"`
+		Database string `json:"database"`
+	} `json:"influxdb"`
 }
 
 func loadConfig(filename string) *Config {
@@ -41,6 +52,9 @@ func main() {
 	flag.StringVar(&configFile, "c", "config.json", "config file")
 	flag.Parse()
 	config := loadConfig(configFile)
+
+	influxdb := influxdb2.NewClient(config.InfluxDB.Host, config.InfluxDB.Token)
+	writeAPI := influxdb.WriteAPIBlocking("", config.InfluxDB.Database)
 
 	b := []byte("sdr get " + strings.Join(config.Sensors, " ") + "\n")
 
@@ -81,6 +95,19 @@ func main() {
 		if len(f) < 2 {
 			continue
 		}
-		fmt.Printf("%s: %s\n", f[0], f[1])
+		value, err := strconv.ParseFloat(f[1], 64)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		p := influxdb2.NewPointWithMeasurement("ipmi").
+			AddTag("host", config.Hostname).
+			AddTag("sensor", f[0]).
+			AddField("_value", value).
+			SetTime(time.Now())
+		err = writeAPI.WritePoint(context.Background(), p)
+		if err != nil {
+			log.Printf("WritePoint: %v", err)
+		}
 	}
 }

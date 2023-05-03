@@ -8,7 +8,7 @@
     "PSU1_PIN",
     "PSU1_POUT",
     "CPU_Power",
-    "FAM_Power",
+    "FAN_Power",
     "Memory_Power",
     "Total_Power"
   ]
