@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -62,7 +61,7 @@ func loadConfig(filename string) *Config {
 	return config
 }
 
-func hostWorker(writeAPI api.WriteAPIBlocking, cmd *exec.Cmd, host string, sensors []string) {
+func hostWorker(writeAPI api.WriteAPI, cmd *exec.Cmd, host string, sensors []string) {
 	stdinW, _ := cmd.StdinPipe()
 	stdoutR, _ := cmd.StdoutPipe()
 
@@ -90,7 +89,7 @@ func hostWorker(writeAPI api.WriteAPIBlocking, cmd *exec.Cmd, host string, senso
 		}
 		value, err := strconv.ParseFloat(f[1], 64)
 		if err != nil {
-			log.Println(err)
+			log.Printf("%s %s: %v\n", host, f[0], err)
 			continue
 		}
 		p := influxdb2.NewPointWithMeasurement("ipmi").
@@ -98,10 +97,7 @@ func hostWorker(writeAPI api.WriteAPIBlocking, cmd *exec.Cmd, host string, senso
 			AddTag("sensor", f[0]).
 			AddField("_value", value).
 			SetTime(time.Now())
-		err = writeAPI.WritePoint(context.Background(), p)
-		if err != nil {
-			log.Printf("WritePoint: %v", err)
-		}
+		writeAPI.WritePoint(p)
 	}
 }
 
@@ -112,7 +108,7 @@ func main() {
 	config := loadConfig(configFile)
 
 	influxdb := influxdb2.NewClient(config.InfluxDB.Host, config.InfluxDB.Token)
-	writeAPI := influxdb.WriteAPIBlocking("", config.InfluxDB.Database)
+	writeAPI := influxdb.WriteAPI("", config.InfluxDB.Database)
 
 	for _, host := range config.Hosts {
 		cmd := openIPMI(host)

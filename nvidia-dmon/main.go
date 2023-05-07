@@ -71,6 +71,11 @@ func main() {
 			log.Println(err)
 			continue
 		}
+		value2, err := strconv.Atoi(f[2])
+		if err != nil {
+			log.Println(err)
+			continue
+		}
 		value4, err := strconv.Atoi(f[4])
 		if err != nil {
 			log.Println(err)
@@ -80,6 +85,7 @@ func main() {
 			AddTag("host", hostname).
 			AddTag("id", f[0]).
 			AddField("pwr", value1).
+			AddField("gtemp", value2).
 			AddField("fb", value4).
 			SetTime(time.Now())
 		writeAPI.WritePoint(p)
