@@ -57,6 +57,10 @@ func main() {
 		panic(err)
 	}
 
+	fmt.Printf("%8s  %8s  %5s  %5s%%  %7s  %6s  %5s%%\n",
+		"req/s", "ARC Hit", "Miss", "Rate", "L2 Hit", "Miss", "Rate")
+	defer fmt.Println()
+
 	ticker := time.NewTicker(*intervalP)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -82,10 +86,8 @@ func main() {
 		if l2hits+l2misses > 0 {
 			l2hitratio = float64(l2hits) / float64(l2hits+l2misses) * 100.0
 		}
-
-		fmt.Printf("%.1f req/s, ARC %.1f/%.1f (%.1f%%), L2ARC %.1f/%.1f (%.1f%%)\n",
+		fmt.Printf("\r\x1B[2K%8.1f  %8.1f  %5.1f  %5.1f%%  %7.1f  %6.1f  %5.1f%%",
 			reqrate, hitrate, missrate, hitratio, l2hitrate, l2missrate, l2hitratio)
-
 		last = s
 	}
 }
