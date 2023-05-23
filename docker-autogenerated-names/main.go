@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/ryanuber/columnize"
+	"github.com/olekukonko/tablewriter"
 )
 
 var (
@@ -39,7 +40,8 @@ func main() {
 		panic(err)
 	}
 
-	lines := []string{"X | State | ID | Name | Image"}
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"X", "State", "ID", "Name", "Image"})
 	for _, c := range containers {
 		name := strings.TrimPrefix(c.Names[0], "/")
 		line := []string{".",
@@ -51,7 +53,7 @@ func main() {
 		if isAutoName(name) {
 			line[0] = "X"
 		}
-		lines = append(lines, strings.Join(line, " | "))
+		table.Append(line)
 	}
-	fmt.Println(columnize.SimpleFormat(lines))
+	table.Render()
 }
