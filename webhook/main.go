@@ -5,8 +5,8 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
+	"flag"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -14,76 +14,84 @@ import (
 	"strings"
 )
 
-type WebhookPayload struct {
+type GitPullPayload struct {
 	Ref string `json:"ref"`
 }
 
-var hooks = map[string]string{
-	"/webhook/github/pull": "cd /var/www/html; git fetch origin gh-pages; git reset --hard FETCH_HEAD",
-}
+var (
+	listenPort string
+	workDir    string
+	urlPath    string
+)
 
-func HandleWebhookWithCommand(w http.ResponseWriter, req *http.Request, s string) {
+func HandleGitPull(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 
-	body, err := ioutil.ReadAll(req.Body)
+	body, err := io.ReadAll(req.Body)
 	if err != nil {
+		log.Printf("io.ReadAll failed: %s\n", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	if keystring, ok := os.LookupEnv("WEBHOOK_SECRET"); ok {
-		sig := req.Header.Get("X-Hub-Signature")
-		if len(sig) == 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(w, "Missing signature\n")
+		sigStr := req.Header.Get("X-Hub-Signature")
+		sig, ok := strings.CutPrefix(sigStr, "sha1=")
+		if !ok {
+			log.Printf("Missing signature\n")
+			http.Error(w, "Missing signature\n", http.StatusForbidden)
 			return
 		}
-		if !strings.HasPrefix(sig, "sha1=") {
-			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprintf(w, "Invalid signature\n")
-			return
-		}
-		sigmac, err := hex.DecodeString(sig[5:])
+		sigmac, err := hex.DecodeString(sig)
 		if err != nil {
-			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprintf(w, "Invalid signature\n")
+			log.Printf("Invalid signature: %s\n", err)
+			http.Error(w, "Invalid signature\n", http.StatusForbidden)
 			return
 		}
-		key := []byte(keystring)
-		mac := hmac.New(sha1.New, key)
+		mac := hmac.New(sha1.New, []byte(keystring))
 		mac.Write(body)
 		if !hmac.Equal(sigmac, mac.Sum(nil)) {
-			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprintf(w, "Bad signature\n")
+			log.Printf("Bad signature: Expected %x, got %x\n", mac.Sum(nil), sigmac)
+			http.Error(w, "Bad signature\n", http.StatusForbidden)
 			return
 		}
 	}
 
-	var payload WebhookPayload
+	var payload GitPullPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Invalid JSON\n")
+		log.Printf("Invalid JSON: %s\n", err)
+		http.Error(w, "Invalid JSON\n", http.StatusBadRequest)
 		return
 	}
 	if payload.Ref == "refs/heads/gh-pages" {
-		cmd := exec.Command("sh", "-c", s)
+		cmd := exec.Command("/bin/sh", "-c", "git fetch origin gh-pages && git reset --hard FETCH_HEAD")
+		cmd.Dir = workDir
 		if err := cmd.Start(); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Webhook failed\n")
+			log.Printf("exec.Command failed: %s\n", err)
+			http.Error(w, "Webhook failed\n", http.StatusInternalServerError)
 		} else {
-			fmt.Fprintf(w, "OK\n")
+			go cmd.Wait()
+			http.Error(w, "OK\n", http.StatusOK)
 		}
 	} else {
-		fmt.Fprintf(w, "Not interested in this ref\n")
+		log.Printf("Ignoring ref %s\n", payload.Ref)
+		http.Error(w, "Not interested in this ref\n", http.StatusOK)
 	}
 }
 
 func main() {
-	for k, v := range hooks {
-		http.HandleFunc(k, func(w http.ResponseWriter, r *http.Request) { HandleWebhookWithCommand(w, r, v) })
+	flag.StringVar(&listenPort, "l", "127.0.0.1:8001", "listen address and port")
+	flag.StringVar(&workDir, "c", "/var/www/html", "git repo location")
+	flag.StringVar(&urlPath, "p", "/webhook/github/pull", "url path")
+	flag.Parse()
+	// $JOURNAL_STREAM is set by systemd v231+
+	if _, ok := os.LookupEnv("JOURNAL_STREAM"); ok {
+		log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 	}
-	log.Fatal(http.ListenAndServe("127.0.0.1:8001", nil))
+
+	http.HandleFunc(urlPath, HandleGitPull)
+	log.Fatal(http.ListenAndServe(listenPort, nil))
 }
