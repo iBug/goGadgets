@@ -1,0 +1,13 @@
+[Unit]
+Description=GitHub webhook
+StartLimitIntervalSec=1
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=3
+Environment=WEBHOOK_SECRET=?
+ExecStart=/usr/local/bin/webhook-go -c /var/www/html -l 127.0.0.1:8001 -p /webhook/github/pull
+
+[Install]
+WantedBy=multi-user.target
