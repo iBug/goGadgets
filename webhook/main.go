@@ -66,20 +66,21 @@ func HandleGitPull(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "Invalid JSON\n", http.StatusBadRequest)
 		return
 	}
-	if payload.Ref == "refs/heads/gh-pages" {
-		cmd := exec.Command("/bin/sh", "-c", "git fetch origin gh-pages && git reset --hard FETCH_HEAD")
-		cmd.Dir = workDir
-		if err := cmd.Start(); err != nil {
-			log.Printf("exec.Command failed: %s\n", err)
-			http.Error(w, "Webhook failed\n", http.StatusInternalServerError)
-		} else {
-			go cmd.Wait()
-			http.Error(w, "OK\n", http.StatusOK)
-		}
-	} else {
+	if payload.Ref != "refs/heads/gh-pages" {
 		log.Printf("Ignoring ref %s\n", payload.Ref)
 		http.Error(w, "Not interested in this ref\n", http.StatusOK)
+		return
 	}
+
+	cmd := exec.Command("/bin/sh", "-c", "git fetch origin gh-pages && git reset --hard FETCH_HEAD")
+	cmd.Dir = workDir
+	if err := cmd.Start(); err != nil {
+		log.Printf("exec.Command failed: %s\n", err)
+		http.Error(w, "Webhook failed\n", http.StatusInternalServerError)
+		return
+	}
+	go cmd.Wait()
+	http.Error(w, "OK\n", http.StatusOK)
 }
 
 func main() {
