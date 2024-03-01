@@ -22,6 +22,7 @@ var (
 	listenPort string
 	workDir    string
 	urlPath    string
+	branch     string
 )
 
 func HandleGitPull(w http.ResponseWriter, req *http.Request) {
@@ -66,13 +67,13 @@ func HandleGitPull(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "Invalid JSON\n", http.StatusBadRequest)
 		return
 	}
-	if payload.Ref != "refs/heads/gh-pages" {
+	if payload.Ref != "refs/heads/"+branch {
 		log.Printf("Ignoring ref %s\n", payload.Ref)
 		http.Error(w, "Not interested in this ref\n", http.StatusOK)
 		return
 	}
 
-	cmd := exec.Command("/bin/sh", "-c", "git fetch origin gh-pages && git reset --hard FETCH_HEAD")
+	cmd := exec.Command("/bin/sh", "-c", "git fetch origin "+branch+" && git reset --hard FETCH_HEAD")
 	cmd.Dir = workDir
 	if err := cmd.Start(); err != nil {
 		log.Printf("exec.Command failed: %s\n", err)
@@ -87,6 +88,7 @@ func main() {
 	flag.StringVar(&listenPort, "l", "127.0.0.1:8001", "listen address and port")
 	flag.StringVar(&workDir, "c", "/var/www/html", "git repo location")
 	flag.StringVar(&urlPath, "p", "/webhook/github/pull", "url path")
+	flag.StringVar(&branch, "b", "gh-pages", "deployment branch")
 	flag.Parse()
 	// $JOURNAL_STREAM is set by systemd v231+
 	if _, ok := os.LookupEnv("JOURNAL_STREAM"); ok {
