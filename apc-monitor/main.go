@@ -14,6 +14,7 @@ import (
 
 type Config struct {
 	Host     string `json:"host"`
+	OID      string `json:"oid"`
 	InfluxDB struct {
 		Host     string `json:"host"`
 		Token    string `json:"token"`
@@ -51,11 +52,9 @@ func main() {
 		panic(err)
 	}
 
-	oid := "1.3.6.1.4.1.318.1.1.12.2.3.1.1.2.1"
-
 	for t := range time.NewTicker(1 * time.Second).C {
 		_ = t
-		result, err := snmp.Get([]string{oid})
+		result, err := snmp.Get([]string{config.OID})
 		if err != nil {
 			log.Println(err)
 			continue

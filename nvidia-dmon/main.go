@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"flag"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -49,7 +48,7 @@ func main() {
 
 	cmd := exec.Command("nvidia-smi", "dmon", "-s", "pm")
 	stdoutR, _ := cmd.StdoutPipe()
-	cmd.Stderr = io.Discard
+	cmd.Stderr = nil
 
 	if err := cmd.Start(); err != nil {
 		panic(err)
