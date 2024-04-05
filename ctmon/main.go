@@ -32,13 +32,17 @@ type AcctData struct {
 
 type Recorder struct {
 	mu   sync.Mutex
-	data map[netip.Addr]AcctData
+	data map[netip.Prefix]AcctData
 }
 
 func (r *Recorder) Record(line CTLine) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	key := line.Orig.Src
+	src := line.Orig.Src.Unmap()
+	key, _ := src.Prefix(24)
+	if src.Is6() {
+		key, _ = src.Prefix(48)
+	}
 	data := r.data[key]
 	data.Packets += line.Orig.Packets + line.Reply.Packets
 	data.Bytes += line.Orig.Bytes + line.Reply.Bytes
@@ -46,7 +50,7 @@ func (r *Recorder) Record(line CTLine) {
 }
 
 func (r *Recorder) reset() {
-	r.data = make(map[netip.Addr]AcctData)
+	r.data = make(map[netip.Prefix]AcctData)
 }
 
 func (r *Recorder) Reset() {
@@ -56,7 +60,7 @@ func (r *Recorder) Reset() {
 }
 
 type sortItem struct {
-	Addr netip.Addr
+	Addr netip.Prefix
 	AcctData
 }
 
@@ -79,13 +83,13 @@ func dumpItems(w io.Writer, items []sortItem) {
 			return int(b.Packets - a.Packets)
 		}
 		// Then sort by address
-		return a.Addr.Compare(b.Addr)
+		return a.Addr.Addr().Compare(b.Addr.Addr())
 	})
 	buf := bufio.NewWriter(w)
 	defer buf.Flush()
 	fmt.Fprintf(buf, "Time: %s\n", now.Format(time.DateTime))
 	for _, item := range items {
-		fmt.Fprintf(buf, "  %40s %8d %12d\n", item.Addr.String(), item.Packets, item.Bytes)
+		fmt.Fprintf(buf, "  %20s %8d %12d\n", item.Addr.String(), item.Packets, item.Bytes)
 	}
 	fmt.Fprintln(buf)
 }
@@ -193,6 +197,11 @@ func main() {
 	var outFilename string
 	flag.StringVar(&outFilename, "o", "conntrack.log", "output file")
 	flag.Parse()
+
+	if _, ok := os.LookupEnv("JOURNAL_STREAM"); ok {
+		log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	}
+
 	outFile, err := os.OpenFile(outFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
