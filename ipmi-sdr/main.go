@@ -70,12 +70,14 @@ func hostWorker(writeAPI api.WriteAPI, cmd *exec.Cmd, host string, sensors []str
 
 	b := []byte("sdr get " + strings.Join(sensors, " ") + "\n")
 	stdinW.Write([]byte("set csv 1\n"))
+	ticker := time.NewTicker(1 * time.Second)
 	go func() {
-		for t := range time.NewTicker(time.Second).C {
+		for t := range ticker.C {
 			_ = t
 			stdinW.Write(b)
 		}
 	}()
+	defer ticker.Stop()
 
 	scanner := bufio.NewScanner(stdoutR)
 	for scanner.Scan() {
@@ -111,8 +113,13 @@ func main() {
 	writeAPI := influxdb.WriteAPI("", config.InfluxDB.Database)
 
 	for _, host := range config.Hosts {
-		cmd := openIPMI(host)
-		go hostWorker(writeAPI, cmd, host.Name, config.Sensors)
+		host := host
+		go func() {
+			for {
+				cmd := openIPMI(host)
+				hostWorker(writeAPI, cmd, host.Name, config.Sensors)
+			}
+		}()
 	}
 	<-make(chan struct{})
 }
