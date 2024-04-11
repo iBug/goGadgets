@@ -1,0 +1,48 @@
+{
+  "ipmi-sdr": {
+    "hosts": [
+      {
+        "name": "foo",
+        "address": "127.0.0.1",
+        "username": "admin",
+        "password": "admin"
+      },
+      {
+        "name": "bar",
+        "address": "127.0.0.2",
+        "username": "admin",
+        "password": "admin"
+      }
+    ],
+    "sensors": [
+      "PSU1_PIN",
+      "PSU1_POUT",
+      "CPU_Power",
+      "FAN_Power",
+      "Memory_Power",
+      "Total_Power"
+    ]
+  },
+  "nvidia-smi": {
+    "hosts": [
+      {
+        "name": "foo",
+        "#comment": "set sshname to an empty string to use nvidia-smi locally",
+        "sshname": ""
+      },
+      {
+        "name": "bar",
+        "sshname": "root@bar"
+      }
+    ]
+  },
+  "apc": {
+    "host": "127.0.0.1",
+    "oid": "1.3.6.1.4.1.318.1.1.12.2.3.1.1.2.1"
+  },
+  "influxdb": {
+    "host": "http://127.0.0.1:8086",
+    "token": "token",
+    "database": "apc"
+  }
+}
