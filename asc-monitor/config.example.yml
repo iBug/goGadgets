@@ -1,0 +1,32 @@
+influxdb:
+  database: apc
+  host: http://127.0.0.1:8086
+  token: token
+
+ipmi-sdr:
+  hosts:
+  - address: 127.0.0.1
+    name: foo
+    password: admin
+    username: admin
+  - address: 127.0.0.2
+    name: bar
+    password: admin
+    username: admin
+  sensors:
+  - PSU1_PIN
+  - PSU1_POUT
+  - CPU_Power
+  - FAN_Power
+  - Memory_Power
+  - Total_Power
+nvidia-smi:
+  hosts:
+  - name: foo
+    # omit "sshname" to use nvidia-smi locally
+    sshname: ""
+  - name: bar
+    sshname: root@bar
+apc:
+  host: 127.0.0.1
+  oid: 1.3.6.1.4.1.318.1.1.12.2.3.1.1.2.1

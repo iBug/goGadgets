@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -13,6 +12,7 @@ import (
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
+	"sigs.k8s.io/yaml"
 )
 
 type InfluxDBConfig struct {
@@ -30,13 +30,12 @@ type Config struct {
 }
 
 func loadConfig(filename string) *Config {
-	f, err := os.Open(filename)
+	b, err := os.ReadFile(filename)
 	if err != nil {
 		panic(err)
 	}
-	defer f.Close()
 	config := new(Config)
-	err = json.NewDecoder(f).Decode(config)
+	err = yaml.Unmarshal(b, &config)
 	if err != nil {
 		panic(err)
 	}
@@ -87,9 +86,13 @@ func hostWorker(writeAPI api.WriteAPI, cmd *exec.Cmd, host string, sensors []str
 
 func main() {
 	var configFile string
-	flag.StringVar(&configFile, "c", "config.json", "config file")
+	flag.StringVar(&configFile, "c", "config.yml", "config file")
 	flag.Parse()
 	config := loadConfig(configFile)
+
+	if _, ok := os.LookupEnv("JOURNAL_STREAM"); ok {
+		log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	}
 
 	influxdb := influxdb2.NewClient(config.InfluxDB.Host, config.InfluxDB.Token)
 	writeAPI := influxdb.WriteAPI("", config.InfluxDB.Database)
