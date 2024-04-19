@@ -100,6 +100,9 @@ func main() {
 	if config.IPMI != nil {
 		IPMIMonitor{}.Start(writeAPI, *config.IPMI)
 	}
+	if config.NVIDIA != nil {
+		NVIDIAMonitor{}.Start(writeAPI, *config.NVIDIA)
+	}
 	if config.APC != nil {
 		APCMonitor{}.Start(writeAPI, *config.APC)
 	}
