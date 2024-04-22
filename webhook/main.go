@@ -31,12 +31,7 @@ func HandleGitPull(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		log.Printf("io.ReadAll failed: %s\n", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+	var payload GitPullPayload
 
 	if keystring, ok := os.LookupEnv("WEBHOOK_SECRET"); ok {
 		sigStr := req.Header.Get("X-Hub-Signature")
@@ -53,20 +48,24 @@ func HandleGitPull(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		mac := hmac.New(sha1.New, []byte(keystring))
-		mac.Write(body)
+		if err := json.NewDecoder(io.TeeReader(req.Body, mac)).Decode(&payload); err != nil {
+			log.Printf("Error reading request: %s\n", err)
+			http.Error(w, "Error reading request\n", http.StatusBadRequest)
+			return
+		}
 		if !hmac.Equal(sigmac, mac.Sum(nil)) {
 			log.Printf("Bad signature: Expected %x, got %x\n", mac.Sum(nil), sigmac)
 			http.Error(w, "Bad signature\n", http.StatusForbidden)
 			return
 		}
+	} else {
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			log.Printf("Error reading request: %s\n", err)
+			http.Error(w, "Error reading request\n", http.StatusBadRequest)
+			return
+		}
 	}
 
-	var payload GitPullPayload
-	if err := json.Unmarshal(body, &payload); err != nil {
-		log.Printf("Invalid JSON: %s\n", err)
-		http.Error(w, "Invalid JSON\n", http.StatusBadRequest)
-		return
-	}
 	if payload.Ref != "refs/heads/"+branch {
 		log.Printf("Ignoring ref %s\n", payload.Ref)
 		http.Error(w, "Not interested in this ref\n", http.StatusOK)
