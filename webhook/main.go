@@ -23,6 +23,7 @@ var (
 	workDir    string
 	urlPath    string
 	branch     string
+	waitCmd    bool
 )
 
 func HandleGitPull(w http.ResponseWriter, req *http.Request) {
@@ -79,7 +80,13 @@ func HandleGitPull(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "Webhook failed\n", http.StatusInternalServerError)
 		return
 	}
-	go cmd.Wait()
+	if waitCmd {
+		if err := cmd.Wait(); err != nil {
+			log.Printf("Command failed: %s\n", err)
+		}
+	} else {
+		go cmd.Wait()
+	}
 	http.Error(w, "OK\n", http.StatusOK)
 }
 
@@ -88,6 +95,7 @@ func main() {
 	flag.StringVar(&workDir, "c", "/var/www/html", "git repo location")
 	flag.StringVar(&urlPath, "p", "/webhook/github/pull", "url path")
 	flag.StringVar(&branch, "b", "gh-pages", "deployment branch")
+	flag.BoolVar(&waitCmd, "w", false, "wait for git pull to complete before returning")
 	flag.Parse()
 	// $JOURNAL_STREAM is set by systemd v231+
 	if _, ok := os.LookupEnv("JOURNAL_STREAM"); ok {
